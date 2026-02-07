@@ -1,2 +1,4 @@
+.env
 .idea
-copy_chat.txt
+
+history.txt
