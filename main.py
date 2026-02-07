@@ -1,7 +1,10 @@
 import aiofiles
+import argparse
 import asyncio
 import datetime
 import logging
+
+from environs import Env
 
 
 async def get_chat(domain, port, filename):
@@ -21,6 +24,21 @@ async def get_chat(domain, port, filename):
 
 
 if __name__ == '__main__':
+    env = Env()
+    env.read_env()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--host', default=env.str('HOST'), help='Хост для подключения к чату'
+    )
+    parser.add_argument(
+        '--port', default=env.int('PORT'), help='Порт для подключения к чату'
+    )
+    parser.add_argument(
+        '--history', default=env.str('HISTORY'), help='Файл для сохранения истории переписки'
+    )
+    args = parser.parse_args()
+
     logging.basicConfig(
         level=logging.INFO,
         format= u'[%(asctime)s] %(message)s',
@@ -29,9 +47,9 @@ if __name__ == '__main__':
     loger = logging.getLogger(__name__)
     date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    with open('copy_chat.txt', 'w', encoding='utf-8') as file:
+    with open(args.history, 'w', encoding='utf-8') as file:
         file.write(f'[{date}] Соединение установлено!\n')
 
     loger.info('Соединение установлено')
 
-    asyncio.run(get_chat('minechat.dvmn.org', 5000, 'copy_chat.txt'))
+    asyncio.run(get_chat(args.host, args.port, args.history))
