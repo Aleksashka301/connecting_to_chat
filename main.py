@@ -17,10 +17,12 @@ async def get_chat(domain, port, filename):
         if not line_text:
             break
 
-        async with aiofiles.open(filename, mode='a', encoding='utf-8') as file:
-            await file.write(f'[{date}] {line_text.decode().rstrip()}\n')
+        decoded_message = line_text.decode().rstrip()
 
-        loger.info(line_text.decode().rstrip())
+        async with aiofiles.open(filename, mode='a', encoding='utf-8') as file:
+            await file.write(f'[{date}] {decoded_message}\n')
+
+        loger.info(decoded_message)
 
 
 if __name__ == '__main__':
