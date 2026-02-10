@@ -7,10 +7,12 @@ import logging
 from environs import Env
 
 
-async def get_chat(domain, port, filename):
-    reader, writer = await asyncio.open_connection(domain, port)
-
+async def read_chat(reader, user_typing, filename):
     while True:
+        if user_typing.is_set():
+            await asyncio.sleep(1)
+            continue
+
         date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         line_text = await reader.readline()
 
@@ -24,6 +26,31 @@ async def get_chat(domain, port, filename):
 
         loger.info(decoded_message)
 
+
+async def write_chat(token, user_typing):
+    reader, writer = await asyncio.open_connection('minechat.dvmn.org', '5050')
+    loop = asyncio.get_running_loop()
+
+    writer.write((token + '\n').encode())
+    await writer.drain()
+
+    while True:
+        user_typing.set()
+        message = await loop.run_in_executor(None, input)
+        writer.write((message + '\n\n').encode())
+        await writer.drain()
+        user_typing.clear()
+
+
+async def main(domain, port, filename, token):
+    reader, writer = await asyncio.open_connection(domain, port)
+    user_typing = asyncio.Event()
+    user_typing.clear()
+
+    await asyncio.gather(
+        write_chat(token, user_typing),
+        read_chat(reader, user_typing, filename),
+    )
 
 if __name__ == '__main__':
     env = Env()
@@ -54,4 +81,4 @@ if __name__ == '__main__':
 
     loger.info('Соединение установлено')
 
-    asyncio.run(get_chat(args.host, args.port, args.history))
+    asyncio.run(main(args.host, args.port, args.history, env.str('TOKEN')))
