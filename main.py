@@ -7,12 +7,35 @@ import logging
 from environs import Env
 
 
-async def read_chat(reader, user_typing, filename):
-    while True:
-        if user_typing.is_set():
-            await asyncio.sleep(1)
-            continue
+async def authorization(domain, port):
+    reader, writer = await asyncio.open_connection(domain, port)
+    loop = asyncio.get_running_loop()
 
+    response = await reader.readline()
+    loger.info('sender: %s', response.decode().rstrip())
+
+    token = await loop.run_in_executor(None, input)
+
+    writer.write((token + '\n').encode())
+    await writer.drain()
+    loger.info('receiver: %s', token)
+
+    if not token:
+        response = await reader.readline()
+        loger.info('sender: %s', response.decode().rstrip())
+
+        nickname = await loop.run_in_executor(None, input)
+        writer.write((nickname + '\n').encode())
+        await writer.drain()
+        loger.info('receiver: %s', nickname)
+
+    return reader, writer
+
+
+async def read_chat(domain, port, filename):
+    reader, writer = await asyncio.open_connection(domain, port)
+
+    while True:
         date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         line_text = await reader.readline()
 
@@ -27,29 +50,25 @@ async def read_chat(reader, user_typing, filename):
         loger.info(decoded_message)
 
 
-async def write_chat(token, user_typing):
-    reader, writer = await asyncio.open_connection('minechat.dvmn.org', '5050')
+async def write_chat(domain, port, token):
+    reader, writer = await asyncio.open_connection(domain, port)
     loop = asyncio.get_running_loop()
 
     writer.write((token + '\n').encode())
     await writer.drain()
 
     while True:
-        user_typing.set()
         message = await loop.run_in_executor(None, input)
         writer.write((message + '\n\n').encode())
         await writer.drain()
-        user_typing.clear()
 
 
-async def main(domain, port, filename, token):
-    reader, writer = await asyncio.open_connection(domain, port)
-    user_typing = asyncio.Event()
-    user_typing.clear()
+async def main(domain, server_port, client_port, filename, token):
+    await authorization(domain, server_port)
 
     await asyncio.gather(
-        write_chat(token, user_typing),
-        read_chat(reader, user_typing, filename),
+        write_chat(domain, server_port, token),
+        read_chat(domain, client_port, filename),
     )
 
 if __name__ == '__main__':
@@ -61,7 +80,10 @@ if __name__ == '__main__':
         '--host', default=env.str('HOST'), help='Хост для подключения к чату'
     )
     parser.add_argument(
-        '--port', default=env.int('PORT'), help='Порт для подключения к чату'
+        '--server_port', default=env.int('SERVER_PORT'), help='Порт для подключения к чату'
+    )
+    parser.add_argument(
+        '--client_port', default=env.int('CLIENT_PORT'), help='Порт для подключения к чату'
     )
     parser.add_argument(
         '--history', default=env.str('HISTORY'), help='Файл для сохранения истории переписки'
@@ -81,4 +103,4 @@ if __name__ == '__main__':
 
     loger.info('Соединение установлено')
 
-    asyncio.run(main(args.host, args.port, args.history, env.str('TOKEN')))
+    asyncio.run(main(args.host, args.server_port, args.client_port, args.history, env.str('TOKEN')))
