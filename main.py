@@ -15,10 +15,15 @@ async def authorization(domain, port):
     loger.info('sender: %s', response.decode().rstrip())
 
     token = await loop.run_in_executor(None, input)
-
     writer.write((token + '\n').encode())
     await writer.drain()
-    loger.info('receiver: %s', token)
+
+    response = await reader.readline()
+    text = response.decode().rstrip()
+
+    if token and text == 'null':
+        loger.info('sender: Неизвестный токен. Проверьте его или зарегистрируйте заново.')
+        return None
 
     if not token:
         response = await reader.readline()
@@ -64,12 +69,13 @@ async def write_chat(domain, port, token):
 
 
 async def main(domain, server_port, client_port, filename, token):
-    await authorization(domain, server_port)
+    registration = await authorization(domain, server_port)
 
-    await asyncio.gather(
-        write_chat(domain, server_port, token),
-        read_chat(domain, client_port, filename),
-    )
+    if registration:
+        await asyncio.gather(
+            write_chat(domain, server_port, token),
+            read_chat(domain, client_port, filename),
+        )
 
 if __name__ == '__main__':
     env = Env()
