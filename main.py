@@ -69,7 +69,7 @@ async def write_chat(domain, port, token):
     reader, writer = await asyncio.open_connection(domain, port)
     loop = asyncio.get_running_loop()
 
-    writer.write((token + '\n').encode())
+    writer.write((token).encode())
     await writer.drain()
 
     response = await reader.readline()
@@ -101,16 +101,29 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--host', default=env.str('HOST'), help='Хост для подключения к чату'
+        '--host',
+        default=env.str('HOST'),
+        help='Хост для подключения к чату'
     )
     parser.add_argument(
-        '--server_port', default=env.int('SERVER_PORT'), help='Порт для подключения к чату'
+        '--server_port',
+        default=env.int('SERVER_PORT'),
+        help='Порт для подключения к чату'
     )
     parser.add_argument(
-        '--client_port', default=env.int('CLIENT_PORT'), help='Порт для подключения к чату'
+        '--client_port',
+        default=env.int('CLIENT_PORT'),
+        help='Порт для подключения к чату'
     )
     parser.add_argument(
-        '--history', default=env.str('HISTORY'), help='Файл для сохранения истории переписки'
+        '--history',
+        default=env.str('HISTORY', default='history.txt'),
+        help='Файл для сохранения истории переписки'
+    )
+    parser.add_argument(
+        '--token',
+        default=env.str('TOKEN', default=None),
+        help='Токен для регистрации'
     )
     args = parser.parse_args()
 
@@ -121,11 +134,10 @@ if __name__ == '__main__':
     )
     loger = logging.getLogger(__name__)
     date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    token = env.str('TOKEN', default=None)
 
     with open(args.history, 'w', encoding='utf-8') as file:
         file.write(f'[{date}] Соединение установлено!\n')
 
     loger.info('Соединение установлено')
 
-    asyncio.run(main(args.host, args.server_port, args.client_port, args.history, token))
+    asyncio.run(main(args.host, args.server_port, args.client_port, args.history, args.token))
