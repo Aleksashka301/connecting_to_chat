@@ -2,6 +2,7 @@ import aiofiles
 import argparse
 import asyncio
 import datetime
+import json
 import logging
 
 from environs import Env
@@ -12,29 +13,38 @@ async def authorization(domain, port):
     loop = asyncio.get_running_loop()
 
     response = await reader.readline()
-    loger.info('sender: %s', response.decode().rstrip())
+    loger.info(f'server: {response.decode().rstrip()}')
 
     token = await loop.run_in_executor(None, input)
     writer.write((token + '\n').encode())
     await writer.drain()
 
     response = await reader.readline()
-    text = response.decode().rstrip()
 
-    if token and text == 'null':
-        loger.info('sender: Неизвестный токен. Проверьте его или зарегистрируйте заново.')
+    if token and response.decode().rstrip() == 'null':
+        loger.info('server: Неизвестный токен. Проверьте его или зарегистрируйтесь заново.')
         return None
 
     if not token:
-        response = await reader.readline()
-        loger.info('sender: %s', response.decode().rstrip())
-
-        nickname = await loop.run_in_executor(None, input)
-        writer.write((nickname + '\n').encode())
-        await writer.drain()
-        loger.info('receiver: %s', nickname)
+        loger.info(f'server: {response.decode().rstrip()}')
+        token = await registration(reader, writer)
+        return token
 
     return reader, writer
+
+
+async def registration(reader, writer):
+    loop = asyncio.get_running_loop()
+    nickname = await loop.run_in_executor(None, input)
+
+    writer.write((nickname + '\n').encode())
+    await writer.drain()
+    loger.info(f'server: {nickname} присоединился к чату.')
+
+    response = await reader.readline()
+    response = response.decode().rstrip()
+
+    return json.loads(response)['account_hash']
 
 
 async def read_chat(domain, port, filename):
@@ -62,6 +72,9 @@ async def write_chat(domain, port, token):
     writer.write((token + '\n').encode())
     await writer.drain()
 
+    response = await reader.readline()
+    loger.info(f'{response.decode().rstrip()}')
+
     while True:
         message = await loop.run_in_executor(None, input)
         writer.write((message + '\n\n').encode())
@@ -69,13 +82,18 @@ async def write_chat(domain, port, token):
 
 
 async def main(domain, server_port, client_port, filename, token):
-    registration = await authorization(domain, server_port)
-
-    if registration:
+    if token:
         await asyncio.gather(
             write_chat(domain, server_port, token),
             read_chat(domain, client_port, filename),
         )
+    else:
+        token = await authorization(domain, server_port)
+        await asyncio.gather(
+            write_chat(domain, server_port, token),
+            read_chat(domain, client_port, filename),
+        )
+
 
 if __name__ == '__main__':
     env = Env()
@@ -103,10 +121,11 @@ if __name__ == '__main__':
     )
     loger = logging.getLogger(__name__)
     date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    token = env.str('TOKEN', default=None)
 
     with open(args.history, 'w', encoding='utf-8') as file:
         file.write(f'[{date}] Соединение установлено!\n')
 
     loger.info('Соединение установлено')
 
-    asyncio.run(main(args.host, args.server_port, args.client_port, args.history, env.str('TOKEN')))
+    asyncio.run(main(args.host, args.server_port, args.client_port, args.history, token))
