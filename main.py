@@ -8,12 +8,10 @@ import logging
 from environs import Env
 
 
-async def authorization(domain, port):
-    reader, writer = await asyncio.open_connection(domain, port)
+async def get_token(reader, writer):
     loop = asyncio.get_running_loop()
-
     response = await reader.readline()
-    loger.info(f'server: {response.decode().rstrip()}')
+    loger.info(response.decode().rstrip())
 
     token = await loop.run_in_executor(None, input)
     writer.write((token + '\n').encode())
@@ -25,12 +23,13 @@ async def authorization(domain, port):
         loger.info('server: Неизвестный токен. Проверьте его или зарегистрируйтесь заново.')
         return None
 
+    if token:
+        return token
+
     if not token:
         loger.info(f'server: {response.decode().rstrip()}')
         token = await registration(reader, writer)
         return token
-
-    return reader, writer
 
 
 async def registration(reader, writer):
@@ -65,15 +64,13 @@ async def read_chat(domain, port, filename):
         loger.info(decoded_message)
 
 
-async def write_chat(domain, port, token):
-    reader, writer = await asyncio.open_connection(domain, port)
+async def write_chat(reader, writer, token):
     loop = asyncio.get_running_loop()
-
     writer.write((token).encode())
     await writer.drain()
 
     response = await reader.readline()
-    loger.info(f'{response.decode().rstrip()}')
+    loger.info(response.decode().rstrip())
 
     while True:
         message = await loop.run_in_executor(None, input)
@@ -82,17 +79,20 @@ async def write_chat(domain, port, token):
 
 
 async def main(domain, server_port, client_port, filename, token):
+    reader, writer = await asyncio.open_connection(domain, server_port)
+
     if token:
         await asyncio.gather(
-            write_chat(domain, server_port, token),
+            write_chat(reader, writer, token),
             read_chat(domain, client_port, filename),
         )
     else:
-        token = await authorization(domain, server_port)
-        await asyncio.gather(
-            write_chat(domain, server_port, token),
-            read_chat(domain, client_port, filename),
-        )
+        token = await get_token(reader, writer)
+        if token:
+            await asyncio.gather(
+                write_chat(reader, writer, token),
+                read_chat(domain, client_port, filename),
+            )
 
 
 if __name__ == '__main__':
