@@ -26,10 +26,10 @@ async def get_token(reader, writer):
     if token:
         return token
 
-    if not token:
-        loger.info(f'server: {response.decode().rstrip()}')
-        token = await registration(reader, writer)
-        return token
+    loger.info(f'server: {response.decode().rstrip()}')
+    token = await registration(reader, writer)
+
+    return token
 
 
 async def registration(reader, writer):
@@ -81,18 +81,17 @@ async def write_chat(reader, writer, token):
 async def main(domain, server_port, client_port, filename, token):
     reader, writer = await asyncio.open_connection(domain, server_port)
 
-    if token:
+    try:
+        if not token:
+            token = await get_token(reader, writer)
+
         await asyncio.gather(
             write_chat(reader, writer, token),
             read_chat(domain, client_port, filename),
         )
-    else:
-        token = await get_token(reader, writer)
-        if token:
-            await asyncio.gather(
-                write_chat(reader, writer, token),
-                read_chat(domain, client_port, filename),
-            )
+    finally:
+        writer.close()
+        await writer.wait_closed()
 
 
 if __name__ == '__main__':
@@ -138,6 +137,6 @@ if __name__ == '__main__':
     with open(args.history, 'w', encoding='utf-8') as file:
         file.write(f'[{date}] Соединение установлено!\n')
 
-    loger.info('Соединение установлено')
+    loger.info('Соединение установлено!')
 
     asyncio.run(main(args.host, args.server_port, args.client_port, args.history, args.token))
